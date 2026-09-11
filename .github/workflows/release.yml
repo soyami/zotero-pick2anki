@@ -1,5 +1,5 @@
 # ============ 发布工作流 ============
-# 触发：推送 v* 标签（例如 v1.0.7），或在 Actions 页手动运行。
+# 触发：推送纯数字标签（例如 1.0.7），或在 Actions 页手动运行。
 #
 # 做三件事：
 #   1) 构建插件：npm run build → .scaffold/build/zotero-pick2anki.xpi 与 update.json
@@ -8,14 +8,16 @@
 #      —— 插件 manifest 里的 update_url 指向 .../releases/download/release/update.json，
 #         Zotero 靠它判断有没有新版本（也可用它放宽 strict_max_version，不必重发 .xpi）
 #
-# 注意：请让标签名与 package.json 的 version 一致（v1.0.7 ↔ 1.0.7），
-#       因为 update.json 里的下载地址是由版本号拼出来的 .../releases/download/v<version>/...
+# 标签命名：纯数字，不带 v（如 1.0.7）。必须与 package.json 的 version 一致，
+#           因为 update.json 里的下载地址是 .../releases/download/<version>/zotero-pick2anki.xpi
+#           （模板见 zotero-plugin.config.ts 的 xpiDownloadLink）。
 name: Release
 
 on:
   push:
     tags:
-      - "v*"
+      # 纯数字版本号，如 1.0.7 / 2.1.0；不匹配 v1.0.7 这类带前缀的标签
+      - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
 
 permissions:

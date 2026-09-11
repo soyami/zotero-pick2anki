@@ -16,6 +16,10 @@ export default defineConfig({
   // manifest 里必须有 update_url（空串会被 Zotero 判为无效插件）；仓库地址为：
   // https://github.com/soyami/zotero-pick2anki
   updateURL: "https://github.com/soyami/zotero-pick2anki/releases/download/release/update.json",
+  // .xpi 的下载地址模板：由它写进 update.json 的 update_link。
+  // 注意：scaffold 的默认模板在版本号前加了 "v"（.../download/v{{version}}/...），
+  // 本项目的标签用纯数字（如 1.0.7），所以这里显式改成不带 v 的模板。
+  xpiDownloadLink: "https://github.com/{{owner}}/{{repo}}/releases/download/{{version}}/{{xpiName}}.xpi",
 
   build: {
     assets: ["addon/**/*.*"],

@@ -75,11 +75,11 @@ ZOTERO_PLUGIN_DATA_DIR=                # 可选：指定测试用数据目录
 
 ```bash
 npm run build                       # 产出 .scaffold/build/zotero-pick2anki.xpi 与 update.json
-# 1) 把 .xpi 挂到 GitHub Release（标签如 v1.0.7）
+# 1) 把 .xpi 挂到 GitHub Release（标签用纯数字，如 1.0.7）
 # 2) 把 .scaffold/build/update.json 挂到 release 标签（Zotero 通过 manifest 里的 update_url 读取它）
 ```
 
-仓库内置了 GitHub Actions 工作流 `.github/workflows/release.yml`：推送 `v*` 标签即自动构建，把 `.xpi` 挂到该标签的 Release、并把 `update.json` 挂到固定的 `release` 标签。
+仓库内置了 GitHub Actions 工作流 `.github/workflows/release.yml`：推送数字标签（如 `1.0.7`）即自动构建，把 `.xpi` 挂到该标签的 Release、并把 `update.json` 挂到固定的 `release` 标签。
 
 `update.json` 由 zotero-plugin-scaffold 生成，含版本号、下载地址、sha512 与兼容区间。它的用处有两点：一是让已安装的用户收到新版本提示；二是**在不重新发 .xpi 的情况下放宽 `strict_max_version`**，使插件在未来的 Zotero 大版本里继续可用（Zotero 的插件版本区间由这份清单动态决定）。
 
@@ -161,74 +161,6 @@ Zotero 专属项（Obsidian 版没有，均有默认值，不影响原有键）�
 
 两版设置键名完全一致，因此词典源顺序、启停、Anki 牌组/模板/字段映射、标签等会直接迁移过来（无法识别的键会被忽略）。
 
-## 架构
-
-### 目录
-
-```
-zotero-pick2anki/
-├── addon/                          # 会被原样打包进 .xpi 的静态资源（Zotero 侧）
-│   ├── manifest.json               # 插件元数据（构建时替换 __占位符__）
-│   ├── bootstrap.js                # Zotero 引导脚本（注册 chrome:// 包 → 加载插件入口 → 调钩子）
-│   ├── prefs.js                    # 默认偏好（构建时自动加 extensions.zotero.zoteropick2anki. 前缀）
-│   └── content/
-│       ├── preferences.xhtml       # 设置面板 fragment（XUL 默认命名空间）
-│       ├── zopick2anki.css         # 弹窗 + 设置面板样式（同一份文件两处复用）
-│       └── icons/                  # 图标（scripts/make-icons.mjs 生成）
-├── src/
-│   ├── index.ts / addon.ts / hooks.ts     # 插件入口、实例、生命周期钩子
-│   ├── types.ts                           # HTTP 层共享类型
-│   └── modules/                            # 词典与写卡逻辑（多为 Pick2anki 原样移植）
-│       ├── dict-types.ts  online-dict.ts  dict-utils.ts  dict-html.ts  dict-render.ts
-│       ├── youdao-dict.ts collins-dict.ts oxford-dict.ts bing-dict.ts cambridge-dict.ts
-│       ├── anki.ts  edge-tts.ts  settings.ts  settings-store.ts
-│       ├── http.ts  env.ts  sha256.ts  zdom.ts  styles.ts   # 新增：Zotero 宿主适配层
-│       └── reader.ts  prefs-ui.ts  api.ts  item-context.ts  sentence.ts
-├── typings/                        # 最小 Zotero 全局声明 + 插件全局声明
-├── scripts/                        # 图标生成、自测运行脚本
-├── test/                           # 集成自测（Zotero 环境桩 + 真实链路验证）
-└── zotero-plugin.config.ts  tsconfig.json  package.json
-```
-
-### 从 Pick2anki 复用的文件（对照表）
-
-| Pick2anki 源文件 | 新项目位置 | 移植处理 |
-|---|---|---|
-| `src/dict-types.ts` | `src/modules/dict-types.ts` | **原样复制**（统一 schema / DictAdapter 契约，一字未改） |
-| `src/online-dict.ts` | `src/modules/online-dict.ts` | **原样复制**（适配器注册表、并发查词、聚合、bundle* 字段提取） |
-| `src/youdao-dict.ts` | `src/modules/youdao-dict.ts` | **原样复制**（含柯林斯英汉双解解析） |
-| `src/collins-dict.ts` | `src/modules/collins-dict.ts` | **原样复制** |
-| `src/oxford-dict.ts` | `src/modules/oxford-dict.ts` | **原样复制** |
-| `src/bing-dict.ts` | `src/modules/bing-dict.ts` | **原样复制** |
-| `src/cambridge-dict.ts` | `src/modules/cambridge-dict.ts` | **原样复制** |
-| `src/dict-html.ts` | `src/modules/dict-html.ts` | **原样复制**（Anki 字段的内联样式 HTML、命中词加粗） |
-| `src/dict-utils.ts` | `src/modules/dict-utils.ts` | 只改两处环境依赖：`requestUrl` 改为转发 `http.ts`；`parseHtml` 从 Zotero 主窗口借 `DOMParser`（其余解析工具函数原样保留） |
-| `src/settings.ts` | `src/modules/settings.ts` | 原有键名/默认值/标签常量**一字未改**，仅在末尾追加 3 个 Zotero 专属项 |
-| `src/anki.ts` | `src/modules/anki.ts` | 替换环境依赖：`requestUrl`→`http.ts`、`crypto.createHash("md5")`→`sha256.ts`、`btoa`→`env.bytesToBase64`；新增可选 `cite`（文献条目信息）用于原句/来源字段，并新增 HTTP 兜底发音 |
-| `src/edge-tts.ts` | `src/modules/edge-tts.ts` | 协议（Sec-MS-GEC / SSML / 时间戳怪癖）**逐字节保留**；环境适配：Node `ws`→浏览器 `WebSocket`、Node `crypto`→纯 TS SHA-256、返回 `Blob`→`Uint8Array`、自定义请求头→Cookie 服务注入 |
-| `src/main.ts` 的划词触发/弹窗 | `src/modules/reader.ts` | 触发源由 `document mouseup` 改为 `Zotero.Reader` 的 `renderTextSelectionPopup` 事件；弹窗由自建浮层改为追加进 Zotero 划词弹窗；按钮状态机（➕/⏳/✔/↺）与自动写卡逻辑沿用 |
-| `src/main.ts` 的设置页 | `src/modules/prefs-ui.ts` | Obsidian `PluginSettingTab` → Zotero 偏好面板；分组、名称、说明文字、拖拽排序、连通性自测、试写测试卡全部对齐 |
-| `src/main.ts` 的 `extractSentenceAround` | `src/modules/sentence.ts` | 逻辑保留，**新增英文句末切分**（原版只按中文标点切句，用于英文 PDF 会把上一句带进来） |
-| `src/main.ts` 的 `loadSettings/saveSettings` | `src/modules/settings-store.ts` | `data.json` → Zotero 偏好（键名一致、数组/对象存 JSON），并新增 Obsidian `data.json` 导入 |
-| `styles.css` | `addon/content/zopick2anki.css` | 类名与视觉规则保留；为 Zotero 补齐同名主题变量、新增设置面板样式 |
-
-### 新写的文件（Zotero 宿主适配）
-
-| 文件 | 职责 |
-|---|---|
-| `src/modules/http.ts` | **网络层适配**：`Zotero.HTTP.request` 封装（浏览器 UA、`successCodes:false` 语义对齐 `requestUrl` 的 `throw:false`、网络错误仍抛出、二进制下载） |
-| `src/modules/env.ts` | 沙箱环境适配：主窗口 `DOMParser`/`WebSocket`/`crypto`、定时器、base64、随机串、日志 |
-| `src/modules/sha256.ts` | 纯 TS SHA-256（Edge TTS 鉴权 + 音频文件名哈希，替代 Node `crypto`） |
-| `src/modules/zdom.ts` | DOM 构造工具，替代 Obsidian 的 `createDiv/createEl` 扩展；按文档类型选择 XHTML 命名空间（偏好面板是 XUL 文档） |
-| `src/modules/styles.ts` | 把 CSS 作为文本注入 reader 的 iframe（esbuild `text` loader） |
-| `src/modules/reader.ts` | reader 划词事件注册、弹窗 DOM、查词与写卡编排、原句扩写、样式注入 |
-| `src/modules/prefs-ui.ts` | 设置面板 UI（中文，分组与文案对齐 Obsidian 版） |
-| `src/modules/api.ts` | 面板与插件本体之间的 API（面板 onload 调用 `Zotero.<addonInstance>.api.*`） |
-| `src/modules/item-context.ts` | Zotero 文献条目信息（标题/作者/年份/`zotero://` 链接） |
-| `src/modules/sentence.ts` | 原句提取（含英文句末切分） |
-| `src/index.ts` `src/addon.ts` `src/hooks.ts` | 插件入口/实例/生命周期（沿用 zotero-plugin-template 的组织方式） |
-| `addon/*`、`typings/*`、`scripts/*`、`test/*`、`zotero-plugin.config.ts` | 打包脚手架、类型声明、图标生成、自测 |
-
 ## 已知限制
 
 1. **Edge TTS 在 Zotero 里属于“尽力而为”**：浏览器的 WebSocket 不能自定义 `Cookie` / `Origin` / `User-Agent`，而微软的 Edge TTS 接口要求带 MUID cookie。本插件改用 Cookie 服务注入 MUID（`src/modules/edge-tts.ts` 的 `ensureMuidCookie`），但若服务端仍因缺少 Origin 而拒绝，就会失败。因此发音链是 **词典 mp3 → 有道发音接口（HTTP，8s 超时）→ Edge TTS（默认关闭，可在设置里开启）**，由 `anki.ts` 的 `storeAudio` 依次尝试，任一成功即写入卡片；全部失败只是跳过「音频」字段，不影响写卡。
@@ -239,81 +171,9 @@ zotero-pick2anki/
 6. **`update_url` 与发布**：Zotero 强制要求 manifest 里有 `update_url`，本项目的更新清单地址指向 `https://github.com/soyami/zotero-pick2anki/releases/download/release/update.json`。在发布 `update.json` 之前，Zotero 的更新检查会 404（不影响使用，只是查不到新版本）；发布方式见下节「发布」。
 7. **AnkiConnect 端口/CORS**：默认 `127.0.0.1:8765`。若修改过 AnkiConnect 的 `webCorsOriginList` 且出现被拒提示，把 `*` 或来源加进白名单（Zotero 的特权请求通常不带 `Origin`，正常情况下无需改动）。
 
-## 验证记录
-
-### 已自动化验证（`npm test`，真实网络 + 真实 AnkiConnect）
-
-`npm test` 会把插件源码打成 Node 可执行文件，用 `test/zotero-stub.ts` 提供最小 `Zotero.HTTP` / `Zotero.Prefs` / `getMainWindow` 桩，然后跑完整链路。**最近一次结果：96/96 项通过**，覆盖：
-
-| 环节 | 结果 |
-|---|---|
-| SHA-256（Edge TTS 鉴权依赖） | 与 Node `crypto` 逐字节一致（含 UTF-8、跨 64 字节块边界共 6 组） |
-| `canUseOnlineDict` 触发判断 | 10 个用例全部符合预期（英文单词/短语触发，中文/整段/超长不触发） |
-| 5 个词典源真实查词 | 有道、必应、剑桥、牛津正常返回，柯林斯 403（自动跳过），成功 4/5 |
-| 设置读写与迁移 | 默认值往返、单项修改持久化、非法字段映射键被过滤、Obsidian `data.json` 导入 12 项 |
-| 原句提取 | 英文句号切分正确、中文标点行为保留、无匹配返回空 |
-| 9 种内容源 HTML | 单一释义/全部释义/例句/额外信息全部生成正确（内联样式、命中词加粗、HTML 转义） |
-| 划词弹窗渲染器（jsdom） | 只展开前 2 个源、样式类齐全、命中词加粗、“另有 …”提示、全部失败时的说明 |
-| 划词弹窗结构与样式约束（jsdom，模拟 `renderTextSelectionPopup` 事件） | 面板含标题行/释义区/按钮行/内联提示行；Ctrl 模式显示「查词」按钮且不自动联网；启用写卡时显示 ➕ Anki；面板高度受「设置值」与「视口 45%」双重约束；面板为定宽 360px；**回归项：不再改写宿主划词弹窗的样式**；样式注入与静默提示行 |
-| AnkiConnect 写卡（真实 Anki） | 连接成功（version 6）→ 读取 9 字段模板「Pick2anki」→ 写入卡片 → 校验 9 个字段内容（Word/Context/Phonetic/SingleDef/AllDefs/Examples/Extra/Audio/Source）→ 音频入库 `[sound:p2a-hello-28bb9761.mp3]` → 重复策略 skip/add 行为正确 → **删除测试卡片、媒体文件与测试牌组，不留痕** |
-
-实测写入 Anki 的字段内容（`hello`，模板 Pick2anki）：
-
-```
-[Word]      hello
-[Context]   She said hello to everyone in the room before the meeting started.
-            —— 来自 《自测文献标题》· Smith, J. et al. (2024) ·《Journal of Testing》
-[Phonetic]  /heˈləʊ/ · UK /həˈləʊ/ · US /heˈləʊ/ · UK /heˈləʊ/ · US /heˈloʊ/
-[SingleDef] <div style="margin:3px 0;line-height:1.5;"><span style="…background-color:#0d47a1…">int.</span>…
-[AllDefs]   <div style="font-weight:600;color:#0d47a1…">有道词典（含柯林斯英汉双解）</div>…
-[Examples]  <ul style="…list-style:square inside…">…
-[Extra]     <div style="color:#666…">词形：hellos</div>…
-[Audio]     [sound:p2a-hello-28bb9761.mp3]
-[Source]    有道词典（含柯林斯英汉双解）：https://dict.youdao.com/result?word=hello&lang=en
-            必应词典（英汉）：https://cn.bing.com/dict/search?q=hello
-            …
-            条目链接：zotero://select/library/items/TESTKEY
-            《自测文献标题》· Smith, J. et al. (2024) ·《Journal of Testing》
-```
-
-### 已自动化验证的宿主侧（构建产物结构）
-
-构建产物结构（`.xpi` 内为根级 `manifest.json` + `bootstrap.js` + `prefs.js` + `content/**`）已核对；`prefs.js` 的键前缀（`extensions.zoteropick2anki.`）与 manifest 的必填字段（`applications.zotero.id` / `update_url` / `strict_max_version`）均符合 Zotero 的插件校验要求 —— 这一点很关键：Zotero 会**强制要求** `update_url`，缺了会被判为「插件无效」而无法安装。
-
-### 已在真实 Zotero 中验证（隔离 profile 加载测试）
-
-本机装有 Zotero **10.0.1**（Windows）。做法：在项目的临时目录里建一个**隔离的 profile 与数据目录**（不碰你现有的 Zotero 库），把构建产物以 `profile/extensions/zoteropick2anki@local.xpi` 方式旁加载，用 `-ZoteroDebugText` 启动 Zotero 抓取调试输出，最后关闭进程（这段加载测试脚本属于本地工具，未纳入仓库）。最近一次结果：
-
-| 检查项 | 实测结果 |
-|---|---|
-| 插件被 AddonManager 收录 | `zoteropick2anki@local` version 1.0.6，`location=app-profile`，**active=True** |
-| bootstrap 启动钩子被调用 | `Calling bootstrap method 'startup' for plugin zoteropick2anki@local version 1.0.6 with reason APP_STARTUP` |
-| 设置从 Zotero 偏好正确读出 | `[zopick2anki] 设置已加载：词典源 [youdao, bing, cambridge, collins, oxford]，Anki 写卡 未启用` |
-| 设置面板注册 | `[zopick2anki] 设置面板已注册：Zotero 设置 → Pick2anki` + Zotero 侧 `Plugin zoteropick2anki@local registered preference pane plugin-pane-… ("Pick2anki")` |
-| **reader 划词监听注册** | `[zopick2anki] 划词监听已注册：renderTextSelectionPopup（插件 ID zoteropick2anki@local）` |
-| 启动无异常 | 调试输出与 stderr 中没有 `Error running bootstrap method`，也没有本插件的任何报错 |
-
-（说明：旁加载的 xpi 会被 Firefox 默认自动禁用，因此测试 profile 里设了 `extensions.autoDisableScopes = 0`；正常通过「从文件安装插件」安装时不需要。）
-
-### 需要人工在 Zotero 里验证的环节
-
-自动化覆盖不到「GUI 交互」，以下请按序确认（每项都给了判断标准）：
-
-1. **从文件安装**：工具 → 插件 → 从文件安装 `.xpi` → 重启。判断：插件列表出现 **Pick2anki** 且已启用（加载与启动钩子本身已由上面的自动化测试验证，这里只确认 GUI 安装路径）。
-2. **设置面板渲染**：编辑 → 设置 → **Pick2anki**。判断：出现中文设置面板（注册已自动验证，渲染与交互需人眼确认）；拖动词典源行可改顺序；点「试查 hello」弹出各源成败；「测试连接并读取」能列出你的牌组/模板；切换模板后字段下拉自动刷新。
-3. **PDF 划词**：打开一篇英文 PDF，选一个单词。判断：划词弹窗内出现「📖 在线词典」区块，含当前选中词、蓝色词性徽章、例句方块；释义超出高度上限时区块内滚动；位置与宽度正常（不会把弹窗挤变形）。
-4. **EPUB 划词**：同上，在 EPUB 阅读器里重复一次（EPUB 的原句扩写更可能回退为选中文本，属预期）。
-5. **弹窗交互**：点「➕ Anki」。判断：按钮依次显示 ⏳ → ✔（成功）或 ↺（已存在）；点击按钮**不会**让 Zotero 划词弹窗异常关闭；若未启用写卡或未配置牌组，右下角弹出中文错误提示。
-6. **卡片内容**：到 Anki 里打开刚写入的卡片。判断：字段内容与上表一致（写卡本身已自动验证）；音频可播放（`[sound:…]`）；来源字段里的 `zotero://` 链接可点击跳回 Zotero。
-7. **与 zotero-pdf-translate 共存**：同时启用两者，划词。判断：弹窗里同时出现它的译文面板与本插件的词典面板，两者互不干扰。
-8. **禁用/重载清理**：禁用再启用本插件。判断：不会出现两个词典面板（说明 `pluginID` 自动注销生效）；禁用后划词不再出现本插件面板。
-9. **深色模式**：系统切到深色主题后重复第 3 步。判断：面板文字/背景对比度正常。
-10. **原句扩写效果**：选一个出现在长句中间的词，看写入卡片的 `Context` 字段。判断：多数情况下是完整句子；若出现奇怪的拼接，就把设置里的「原句扩写」关掉（此时原句 = 你选中的文本，即需求约定的行为）。
-11. **重复策略**：把「重复卡片处理」设为「跳过」，对同一个词再写一次。判断：按钮变 ↺，Anki 里不新增卡片（逻辑已自动验证，这里确认按钮状态）。
-
 ## License 与致谢
 
-MIT。本项目是 MIT 许可的 Obsidian 插件 **Pick2anki** 的衍生物，原始许可证见 `LICENSE-Pick2anki`。
+MIT（`LICENSE` 为标准 MIT 正文）。本项目是 MIT 许可的 Obsidian 插件 **Pick2anki** 的衍生物：其原始许可证文本见 `LICENSE-Pick2anki`，衍生关系与第三方致谢见下面列表。
 
 - **[Pick2anki](https://github.com/soyami/pick2anki)** — MIT © soyami。本项目的词典适配器（有道/柯林斯/牛津/必应/剑桥）、统一词典 schema、AnkiConnect 客户端、Anki 字段 HTML 生成、Edge TTS 协议实现、弹窗与设置页设计均移植自它，**没有它就沒有本项目**。
 - **[zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template)** — AGPL-3.0-or-later。本项目沿用了它的项目组织结构、`zotero-plugin.config.ts` 构建配置写法（`zotero-plugin-scaffold`）与 `addon/manifest.json` / `bootstrap.js` 骨架（该骨架本身来自 Zotero 官方的 [Make It Red](https://github.com/zotero/make-it-red) 示例与 [Zotero 7 开发文档](https://www.zotero.org/support/dev/zotero_7_for_developers)），未复制其中的业务代码。

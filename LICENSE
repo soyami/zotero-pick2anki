@@ -1,16 +1,6 @@
 MIT License
 
-Copyright (c) 2026 zotero-pick2anki contributors
-Portions Copyright (c) 2026 soyami (Pick2anki, https://github.com/soyami/pick2anki)
-
---------------------------------------------------------------------------------
-本项目的词典适配器、AnkiConnect 客户端、字段 HTML 生成、Edge TTS 协议实现等
-大量代码移植自 MIT 许可的 Obsidian 插件 Pick2anki（Copyright (c) 2026 soyami），
-其原始许可证文本见同目录 LICENSE-Pick2anki。
-Zotero 侧的脚手架结构参考 Zotero 官方 "Make It Red" 示例插件与
-windingwind/zotero-plugin-template（AGPL-3.0-or-later）；本项目未复制其中的业务代码，
-bootstrap.js 为 Zotero 官方文档给出的平台引导样板。
---------------------------------------------------------------------------------
+Copyright (c) 2026 soyami
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
