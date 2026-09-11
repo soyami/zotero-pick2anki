@@ -1,0 +1,62 @@
+# ============ 发布工作流 ============
+# 触发：推送 v* 标签（例如 v1.0.7），或在 Actions 页手动运行。
+#
+# 做三件事：
+#   1) 构建插件：npm run build → .scaffold/build/zotero-pick2anki.xpi 与 update.json
+#   2) 把 .xpi 作为附件挂到该标签的 Release（用户从 Release 页下载安装）
+#   3) 把 update.json 挂到固定的 release 标签
+#      —— 插件 manifest 里的 update_url 指向 .../releases/download/release/update.json，
+#         Zotero 靠它判断有没有新版本（也可用它放宽 strict_max_version，不必重发 .xpi）
+#
+# 注意：请让标签名与 package.json 的 version 一致（v1.0.7 ↔ 1.0.7），
+#       因为 update.json 里的下载地址是由版本号拼出来的 .../releases/download/v<version>/...
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node（zotero-plugin-scaffold 需要 ≥ 22.8）
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建插件（类型检查 + 打包 .xpi）
+        run: npm run build
+
+      - name: 把 .xpi 挂到本次标签的 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="manual-$(date -u +%Y%m%d-%H%M%S)"
+          else
+            tag="$GITHUB_REF_NAME"
+          fi
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --notes "zotero-pick2anki 构建产物"
+          gh release upload "$tag" .scaffold/build/zotero-pick2anki.xpi --clobber
+          echo "已上传 .xpi → Release $tag"
+
+      - name: 更新 release 标签下的 update.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view release >/dev/null 2>&1 || gh release create release --title "Update manifest" --notes "Zotero 通过插件 manifest 的 update_url 读取此处的 update.json"
+          gh release upload release .scaffold/build/update.json --clobber
+          echo "已更新 update.json"
