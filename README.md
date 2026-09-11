@@ -171,6 +171,15 @@ Zotero 专属项（Obsidian 版没有，均有默认值，不影响原有键）�
 6. **`update_url` 与发布**：Zotero 强制要求 manifest 里有 `update_url`，本项目的更新清单地址指向 `https://github.com/soyami/zotero-pick2anki/releases/download/release/update.json`。在发布 `update.json` 之前，Zotero 的更新检查会 404（不影响使用，只是查不到新版本）；发布方式见下节「发布」。
 7. **AnkiConnect 端口/CORS**：默认 `127.0.0.1:8765`。若修改过 AnkiConnect 的 `webCorsOriginList` 且出现被拒提示，把 `*` 或来源加进白名单（Zotero 的特权请求通常不带 `Origin`，正常情况下无需改动）。
 
+## 隐私与网络行为
+
+Zotero 插件对本机有完全权限，所以这里把本插件的联网行为列清楚：
+
+- **查词时**：向有道、必应、剑桥、牛津高阶、柯林斯五个词典站发普通 HTTPS 请求（读词条页/接口），发音音频从对应 CDN 直接下载 mp3。请求只带一个常见浏览器 User-Agent，不携带你的任何身份信息或文献内容。
+- **写卡时**：只连本机 `127.0.0.1:8765`（AnkiConnect），不经过任何第三方服务器。
+- **不做的**：没有账号体系、没有 API Key、没有遥测或统计上报；不收集、不上传你的文献、标注或阅读行为。只有你主动写卡时，「选中词 + 所在句子 + 词典释义」才会写进**你本地的 Anki**。
+- **唯一的主动联网检查**：Zotero 会按 manifest 里的 `update_url` 定期拉取本仓库 Release 中的 `update.json` 检查更新（可在 Zotero 偏好里关闭插件自动更新）。
+
 ## License 与致谢
 
 MIT（`LICENSE` 为标准 MIT 正文）。本项目是 MIT 许可的 Obsidian 插件 **Pick2anki** 的衍生物：其原始许可证文本见 `LICENSE-Pick2anki`，衍生关系与第三方致谢见下面列表。

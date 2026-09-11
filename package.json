@@ -5,7 +5,7 @@
   "description": "Zotero 划词词典插件：PDF/EPub 阅读器里选中英文单词 → 5 个在线词典源聚合释义 → 一键通过 AnkiConnect 写入 Anki 生词卡",
   "config": {
     "addonName": "Pick2anki",
-    "addonID": "zoteropick2anki@local",
+    "addonID": "zoteropick2anki@soyami.github.io",
     "addonRef": "zoteropick2anki",
     "addonInstance": "ZoteroPick2anki",
     "prefsPrefix": "extensions.zotero.zoteropick2anki"

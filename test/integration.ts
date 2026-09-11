@@ -318,7 +318,7 @@ async function main(): Promise<void> {
   prefs.set("extensions.zotero.zoteropick2anki.popupMaxHeight", 260);
   registerReaderHandlers();
   check("reader 监听注册（带插件 ID）", listeners.length === 1 && listeners[0].type === "renderTextSelectionPopup"
-    && listeners[0].pluginID === "zoteropick2anki@local", JSON.stringify(listeners.map((l) => l.type)));
+    && listeners[0].pluginID === "zoteropick2anki@soyami.github.io", JSON.stringify(listeners.map((l) => l.type)));
 
   // 模拟宿主划词弹窗：一个带 maxWidth 的容器（v1.0.1 起插件不得再修改它）
   const popupHost = doc.createElement("div");

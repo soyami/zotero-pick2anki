@@ -81,7 +81,7 @@ const ZoteroStub = {
 (globalThis as any).Zotero = ZoteroStub;
 // bootstrap 沙箱里注入的全局
 (globalThis as any).rootURI = "file:///test/";
-(globalThis as any).addon = { data: { config: { addonID: "zoteropick2anki@local", addonRef: "zoteropick2anki" } } };
+(globalThis as any).addon = { data: { config: { addonID: "zoteropick2anki@soyami.github.io", addonRef: "zoteropick2anki" } } };
 
 export function prefsSnapshot(): Record<string, unknown> {
   return Object.fromEntries(prefsStore.entries());
