@@ -2,6 +2,20 @@
 
 > **Zotero 划词词典插件**：在内置 PDF / EPub 阅读器里选中英文单词或短语 → 5 个在线词典源聚合释义 → 一键通过 AnkiConnect 写入 Anki 生词卡（原句就是你在文献里选中的那句话）。
 
+<details>
+<summary><b>English (short version)</b> — the full documentation below is in Chinese</summary>
+
+**Pick2anki for Zotero** — highlight an English word or phrase in Zotero's built-in PDF/EPUB reader to get aggregated definitions from five online dictionaries (Youdao, Bing, Cambridge, Oxford Advanced Learner's, Collins), then send it to Anki as a vocabulary card in one click, including the sentence it appeared in.
+
+- **Requirements**: Zotero 7 or later (tested on 10.0.1). Writing cards needs Anki desktop with the [AnkiConnect](https://foosoft.net/projects/anki-connect/) add-on (default `127.0.0.1:8765`); looking words up works without Anki. No account, no API key.
+- **Install**: download `zotero-pick2anki.xpi` from the [latest release](https://github.com/soyami/zotero-pick2anki/releases/latest) → in Zotero: Tools → Plugins → Install Plugin From File → restart → Edit → Settings → Pick2anki.
+- **Usage**: select an English word in the reader; the selection popup shows the definitions and an "➕ Anki" button. Pick the target deck, note type and field mapping once in the settings panel.
+- **Privacy**: the only requests are to those five dictionary sites (and their audio CDNs) when you look a word up, plus a local call to AnkiConnect when you save a card. No telemetry, no upload of your library or reading data; dictionary pages are parsed for personal study use only.
+- **Complementary to [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate)**: that plugin translates sentences, this one collects vocabulary cards. They share the same selection popup and can be enabled together.
+- **License**: MIT.
+
+</details>
+
 ---
 
 ## 它解决什么问题
@@ -73,11 +87,23 @@ ZOTERO_PLUGIN_DATA_DIR=                # 可选：指定测试用数据目录
 
 仓库：<https://github.com/soyami/zotero-pick2anki>
 
+**日常发版的全部操作就三步**（其余由 CI 完成）：
+
 ```bash
-npm run build                       # 产出 .scaffold/build/zotero-pick2anki.xpi 与 update.json
-# 1) 把 .xpi 挂到 GitHub Release（标签用纯数字，如 1.0.7）
-# 2) 把 .scaffold/build/update.json 挂到 release 标签（Zotero 通过 manifest 里的 update_url 读取它）
+# 1) 改 package.json 的 version（例如 1.0.6 → 1.0.7）并提交推送
+git commit -am "release: 1.0.7" && git push
+# 2) 打纯数字标签（不带 v），名字必须与 version 一致
+git tag 1.0.7
+# 3) 推送标签，触发工作流
+git push origin 1.0.7
 ```
+
+工作流会自动：类型检查 + 打包 `.xpi` → 挂到 `1.0.7` 这个 Release → 刷新固定的 `release` 标签（`update.json` + 一份 `.xpi`，并保持 pre-release）→ 最后跑一遍自检（断言 `latest` 是带 `.xpi` 的版本 Release，否则整个 job 失败）。
+
+```bash
+npm run build          # 想本地手动构建：产出 .scaffold/build/zotero-pick2anki.xpi 与 update.json
+```
+
 
 仓库内置了 GitHub Actions 工作流 `.github/workflows/release.yml`：推送数字标签（如 `1.0.7`）即自动构建，把 `.xpi` 挂到该标签的 Release、并把 `update.json` 挂到固定的 `release` 标签。
 

@@ -15,7 +15,7 @@
     "type": "git",
     "url": "git+https://github.com/soyami/zotero-pick2anki.git"
   },
-  "author": "zotero-pick2anki 移植项目（原 Pick2anki 作者 soyami，MIT）",
+  "author": "zotero-pick2anki ",
   "license": "MIT",
   "scripts": {
     "build": "npm run typecheck && zotero-plugin build",
