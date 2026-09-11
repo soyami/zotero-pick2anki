@@ -81,6 +81,13 @@ npm run build                       # 产出 .scaffold/build/zotero-pick2anki.xp
 
 仓库内置了 GitHub Actions 工作流 `.github/workflows/release.yml`：推送数字标签（如 `1.0.7`）即自动构建，把 `.xpi` 挂到该标签的 Release、并把 `update.json` 挂到固定的 `release` 标签。
 
+两个 Release 的分工：
+
+| 标签 | 内容 | 说明 |
+|---|---|---|
+| `<版本号>`（如 `1.0.7`） | `zotero-pick2anki.xpi` | 用户下载安装用；也是插件市场抓取 `.xpi` 的地方 |
+| `release`（固定） | `update.json`（+ 一份 `.xpi` 备份） | 更新清单桶：manifest 的 `update_url` 指向它。**标记为 pre-release**，这样 GitHub 的 `latest` 始终指向真正的版本 Release（抓取方都是按「latest 里的 .xpi」取包的，否则会在清单桶里找不到包） |
+
 `update.json` 由 zotero-plugin-scaffold 生成，含版本号、下载地址、sha512 与兼容区间。它的用处有两点：一是让已安装的用户收到新版本提示；二是**在不重新发 .xpi 的情况下放宽 `strict_max_version`**，使插件在未来的 Zotero 大版本里继续可用（Zotero 的插件版本区间由这份清单动态决定）。
 
 ## 使用

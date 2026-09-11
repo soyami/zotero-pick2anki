@@ -1,15 +1,23 @@
 # ============ 发布工作流 ============
-# 触发：推送纯数字标签（例如 1.0.7），或在 Actions 页手动运行。
+# 触发：
+#   · 推送纯数字标签（例如 1.0.7）
+#   · 或手动运行（Actions → Release → Run workflow）—— 只刷新 release 标签下的清单桶
 #
 # 做三件事：
 #   1) 构建插件：npm run build → .scaffold/build/zotero-pick2anki.xpi 与 update.json
-#   2) 把 .xpi 作为附件挂到该标签的 Release（用户从 Release 页下载安装）
-#   3) 把 update.json 挂到固定的 release 标签
-#      —— 插件 manifest 里的 update_url 指向 .../releases/download/release/update.json，
-#         Zotero 靠它判断有没有新版本（也可用它放宽 strict_max_version，不必重发 .xpi）
+#   2) 把 .xpi 作为附件挂到该标签的 Release（用户与插件市场都从这里取包）
+#   3) 维护固定的 release 标签（"更新清单桶"）：
+#      · 只放 update.json —— 插件 manifest 里的 update_url 指向它，Zotero 靠它检查更新
+#      · 同时放一份 .xpi、并把它标为 pre-release —— 见下方「为什么」
 #
-# 标签命名：纯数字，不带 v（如 1.0.7）。必须与 package.json 的 version 一致，
-#           因为 update.json 里的下载地址是 .../releases/download/<version>/zotero-pick2anki.xpi
+# 为什么 release 桶要标 pre-release：
+#   GitHub 的 /releases/latest 会排除 pre-release。社区插件市场（syt2/zotero-addons-scraper）
+#   与多数抓取方都是按「latest release 里的 .xpi 资产」取包的；如果清单桶也算 latest，
+#   抓取方会在里面找不到 xpi（只有 update.json），插件就不会出现在市场里。
+#   标为 pre-release 后 latest 稳定指向真正的版本 Release；桶里再放一份 xpi 是双保险。
+#
+# 标签命名：纯数字，不带 v（如 1.0.7），必须与 package.json 的 version 一致 ——
+#           update.json 里的下载地址是 .../releases/download/<version>/zotero-pick2anki.xpi
 #           （模板见 zotero-plugin.config.ts 的 xpiDownloadLink）。
 name: Release
 
@@ -19,6 +27,11 @@ on:
       # 纯数字版本号，如 1.0.7 / 2.1.0；不匹配 v1.0.7 这类带前缀的标签
       - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签（留空则只刷新 release 标签下的 update.json 与 xpi）"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -43,11 +56,13 @@ jobs:
         run: npm run build
 
       - name: 把 .xpi 挂到本次标签的 Release
+        if: github.event_name == 'push' || inputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            tag="manual-$(date -u +%Y%m%d-%H%M%S)"
+          if [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
           else
             tag="$GITHUB_REF_NAME"
           fi
@@ -55,10 +70,16 @@ jobs:
           gh release upload "$tag" .scaffold/build/zotero-pick2anki.xpi --clobber
           echo "已上传 .xpi → Release $tag"
 
-      - name: 更新 release 标签下的 update.json
+      - name: 维护 release 标签下的清单桶（update.json + xpi，pre-release）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view release >/dev/null 2>&1 || gh release create release --title "Update manifest" --notes "Zotero 通过插件 manifest 的 update_url 读取此处的 update.json"
+          notes="Zotero 通过插件 manifest 的 update_url 读取此处的 update.json；此 Release 标记为 pre-release，以免抢占 GitHub 的 latest（latest 必须是带 .xpi 的版本 Release）"
+          if gh release view release >/dev/null 2>&1; then
+            gh release edit release --prerelease --title "Update manifest" --notes "$notes"
+          else
+            gh release create release --title "Update manifest" --notes "$notes" --prerelease
+          fi
           gh release upload release .scaffold/build/update.json --clobber
-          echo "已更新 update.json"
+          gh release upload release .scaffold/build/zotero-pick2anki.xpi --clobber
+          echo "已更新 release 标签：update.json + zotero-pick2anki.xpi（pre-release）"
