@@ -1,0 +1,12 @@
+<!--
+  设置面板（Zotero 偏好面板 fragment）
+  - 文档以 XUL 为默认命名空间，HTML 标签需带 html: 前缀（Zotero 约定）
+  - onload 里回到插件本体渲染 UI：Zotero.<addonInstance>.api.renderPrefs(...)
+    这样面板与插件沙箱之间不需要共享脚本作用域
+  - 结构参考 zotero-plugin-template 的 preferences.xhtml（AGPL-3.0，本文件为按 Zotero 官方
+    偏好面板约定自行编写的最小骨架）
+-->
+<vbox id="zotero-prefpane-zoteropick2anki"
+      onload="Zotero.ZoteroPick2anki.api.renderPrefs(document, this)">
+  <html:div id="zopick2anki-prefs-host" class="zopick2anki-prefs"></html:div>
+</vbox>

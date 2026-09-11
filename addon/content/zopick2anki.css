@@ -1,0 +1,542 @@
+/* ======== Pick2anki 查词弹窗（对齐 Obsidian 原生 Popover 风格） ========
+   移植说明：类名与视觉规则与 Obsidian 版 Pick2anki 的 styles.css 保持一致，
+   但 Obsidian 的主题变量在 Zotero 里不存在，因此在最前面为 Zotero 作用域补齐同名变量；
+   弹窗根容器由 .p2a-popup（Obsidian 自建浮层）改为 .zop2a-popup（挂进 reader 划词弹窗的块）。
+   同一份文件同时用于：reader 弹窗（由 src/modules/styles.ts 以文本注入 iframe）、
+   设置面板（addon/content/preferences.xhtml 直接 link 引用）。 */
+
+/* ---------- Zotero 环境下的主题变量（作用域限定，不污染 reader 文档） ---------- */
+.zop2a-popup,
+.zopick2anki-prefs {
+  --layer-popover: 20;
+  --background-primary: #ffffff;
+  --background-secondary: #f4f5f7;
+  --background-modifier-border: #d5d7db;
+  --background-modifier-hover: #eceef1;
+  --background-modifier-box-shadow: rgba(0, 0, 0, 0.18);
+  --text-normal: #1a1a1a;
+  --text-muted: #5d6169;
+  --text-faint: #8b8f97;
+  --text-accent: #0d47a1;
+  --text-on-accent: #ffffff;
+  --interactive-normal: #e8eaed;
+  --interactive-hover: #dcdfe3;
+  --interactive-accent: #0d47a1;
+  --input-shadow: none;
+  --color-green: #2e9e5b;
+  --color-orange: #d99000;
+  --font-interface: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  --font-ui-smaller: 11px;
+  --font-ui-small: 13px;
+  --font-medium: 500;
+  --line-height-normal: 1.5;
+  --size-4-1: 4px;
+  --size-4-2: 8px;
+  --size-4-3: 12px;
+  --size-4-4: 16px;
+  --radius-s: 4px;
+  --radius-m: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .zop2a-popup,
+  .zopick2anki-prefs {
+    --background-primary: #2b2c2f;
+    --background-secondary: #242528;
+    --background-modifier-border: #43454a;
+    --background-modifier-hover: #3a3c41;
+    --background-modifier-box-shadow: rgba(0, 0, 0, 0.5);
+    --text-normal: #e8e8e8;
+    --text-muted: #b3b6bb;
+    --text-faint: #8b8f97;
+    --text-accent: #7aa7e8;
+    --interactive-normal: #3a3c41;
+    --interactive-hover: #46484e;
+    --interactive-accent: #3f6ea8;
+  }
+}
+
+/* ---------- reader 里的弹窗容器（挂在 Zotero 划词弹窗内部，随弹窗一起关闭） ---------- */
+/* 关键点（v1.0.1 修复"弹窗过大遮住 PDF"，v1.0.3 宽度改为设置项，v1.0.4 放开宿主弹窗的 198px 上限）：
+   1) 必须给定宽（而不是 width:100%）——宿主划词弹窗是按内容 max-content 撑开的，
+      子元素写 100% 会让弹窗宽度递归膨胀到整页；定宽后弹窗只占这么宽
+      （实际值由 JS 按设置项 popupWidth 写成内联样式，这里只是兜底默认值）。
+   2) 宿主 .selection-popup 自带 max-width:198px，面板再宽也会被压回去；JS 会把它改成
+      "面板宽 + 20px" 的定值上限（有边界，不会被内容撑爆）。
+   3) 整块高度由 JS 按设置写成 max-height，内部 flex 纵向布局：
+      标题行/按钮行固定不压缩，只有释义区滚动，因此「➕ Anki」永远不会被挤出可视区域。
+   4) 分区块的上边框由 Zotero 自己的 `.selection-popup .custom-sections .section` 提供，
+      这里不再重复画线。 */
+.zop2a-popup {
+  width: 400px;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px; /* 由 JS 覆盖为设置项 popupMaxHeight */
+  overflow: hidden;
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  text-align: left;
+  line-height: var(--line-height-normal);
+}
+
+.zop2a-popup .p2a-section-hdr {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.zop2a-popup .p2a-text {
+  flex: 1 1 auto;
+  min-height: 44px;
+  max-height: none;   /* 高度统一由外层 .zop2a-popup 控制 */
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: var(--size-4-2);
+}
+
+.zop2a-popup .p2a-btn-row {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+/* 面板内联提示（替代会抢焦点的系统进度窗口，见 v1.0.1 修复） */
+.zop2a-popup .p2a-msg {
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.zop2a-popup .p2a-msg.p2a-msg-err {
+  color: #c0392b;
+}
+
+/* 原 Obsidian 浮层容器：保留规则以便复用（Zotero 弹窗内不再使用绝对定位） */
+.p2a-popup {
+  z-index: var(--layer-popover, 20);
+  position: relative;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: 0 2px 8px var(--background-modifier-box-shadow);
+  padding: var(--size-4-3) var(--size-4-4);
+  width: min(460px, 90vw);
+  height: auto;
+  overflow: auto;
+  font-size: var(--font-ui-small);
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+}
+
+.p2a-section {
+  margin-bottom: var(--size-4-3);
+}
+.p2a-section:last-child {
+  margin-bottom: 0;
+}
+
+/* 标签：对齐 Obsidian setting-item-description 的小号弱化文字 */
+.p2a-label {
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium);
+  color: var(--text-muted);
+  margin-bottom: var(--size-4-1);
+  user-select: none;
+}
+
+/* 标签行（Zotero 版右侧多一个当前选中词 .p2a-word） */
+.p2a-section-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: var(--size-4-1);
+}
+.p2a-section-hdr .p2a-label {
+  margin-bottom: 0;
+}
+.p2a-word {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  color: var(--text-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.p2a-drag-handle {
+  cursor: grab;
+}
+.p2a-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 内容块：词典释义展示，超长限高滚动避免弹窗抖动（高度由设置项 popupMaxHeight 控制） */
+.p2a-text {
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-normal);
+  color: var(--text-normal);
+  word-break: break-word;
+  padding: var(--size-4-2) var(--size-4-3);
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  max-height: 260px;
+  overflow-y: auto;
+  /* 允许常规文本选取 */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* 按钮行 */
+.p2a-btn-row {
+  display: flex;
+  gap: var(--size-4-2);
+  justify-content: flex-end;
+  margin-top: var(--size-4-2);
+  align-items: center;
+}
+
+.p2a-btn-row button {
+  padding: var(--size-4-1) var(--size-4-3);
+  border: none;
+  border-radius: var(--radius-s);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+  font-family: var(--font-interface);
+}
+
+.p2a-btn-row button:hover {
+  background: var(--interactive-hover);
+}
+
+/* Anki 写卡按钮：主题色强调 */
+.p2a-btn-row button.p2a-anki {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.p2a-btn-row button.p2a-anki:hover {
+  filter: brightness(1.08);
+}
+
+/* 写卡后的动态状态：成功 ✔ / 已存在 ↺ / 失败或进行中 ➕(禁用) */
+.p2a-btn-row button.p2a-anki.p2a-anki-ok {
+  background: var(--color-green, #2e9e5b);
+  color: #fff;
+}
+.p2a-btn-row button.p2a-anki.p2a-anki-dup {
+  background: var(--color-orange, #d99000);
+  color: #fff;
+}
+.p2a-btn-row button.p2a-anki.p2a-anki-err {
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+}
+.p2a-btn-row button.p2a-anki[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ======== 词典源拖动排序列表（设置页） ======== */
+.p2a-src-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: var(--size-4-2) 0;
+  padding: var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  max-width: 640px;
+}
+
+.p2a-src-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  background: var(--background-primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  user-select: none;
+}
+
+.p2a-src-grip {
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: grab;
+}
+
+.p2a-src-name {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+}
+
+.p2a-src-row.p2a-src-dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.p2a-src-row.p2a-src-drag-over {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+/* ======== 词典释义卡片（参照 demo.css 柯林斯卡片样板） ======== */
+.p2a-text b {
+  font-weight: 700;
+}
+
+.p2a-dict-src + .p2a-dict-src {
+  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 8px;
+  padding-top: 6px;
+}
+
+.p2a-dict-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.p2a-src-badge {
+  font-weight: 600;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-accent);
+}
+
+.p2a-src-url {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+.p2a-phon {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin: 2px 0 6px;
+}
+
+.p2a-def {
+  display: block;
+  margin: 4px 0;
+  line-height: 1.55;
+}
+
+/* 词性：蓝色小徽章（小写英文标签，如 noun / adj.） */
+.p2a-pos {
+  display: inline-block;
+  text-transform: lowercase;
+  font-size: 0.9em;
+  margin-right: 6px;
+  padding: 1px 5px;
+  color: #fff;
+  background-color: #0d47a1;
+  border-radius: 3px;
+  vertical-align: baseline;
+}
+
+.p2a-eng-tran {
+  margin-right: 4px;
+}
+
+.p2a-chn-tran {
+  color: #0d47a1;
+}
+
+/* 例句：浅蓝底方块列表，紧跟对应释义 */
+.p2a-sents {
+  list-style: square inside;
+  font-size: 0.9em;
+  margin: 4px 0 6px;
+  padding: 4px 8px;
+  background: rgba(13, 71, 161, 0.1);
+  border-radius: 5px;
+}
+
+.p2a-sent {
+  margin: 2px 0;
+  padding: 0;
+}
+
+.p2a-eng-sent {
+  margin-right: 4px;
+}
+
+.p2a-chn-sent {
+  color: #0d47a1;
+}
+
+.p2a-more {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  margin-top: 4px;
+}
+
+.p2a-extra {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-top: 2px;
+}
+
+/* ======== 设置面板（Zotero 偏好面板，见 addon/content/preferences.xhtml） ======== */
+.zopick2anki-prefs {
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.zopick2anki-prefs h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+  color: var(--text-normal);
+}
+
+.zopick2anki-prefs h2:first-child {
+  margin-top: 4px;
+}
+
+/* ---------- 设置项布局：上下堆叠（v1.0.5 起） ----------
+   v1.0.4 及以前是"名称在左 150px / 控件在右"的两栏；现在改成单栏堆叠：
+       设置名称
+       [实际控件]
+       说明（小灰字）
+   实现要点：.zp-row 改为纵向 flex；说明文字用 order:2 排到控件之后
+   （DOM 里说明仍在控件之前，这样不用改 prefs-ui.ts 的调用顺序，
+    也天然支持"只有说明、没有控件"的信息行）。 */
+.zopick2anki-prefs .zp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0;
+  max-width: 720px;
+}
+
+.zopick2anki-prefs .zp-row > label.zp-name {
+  flex: 0 0 auto;
+  padding-top: 0;
+  font-weight: 600;
+}
+
+.zopick2anki-prefs .zp-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 说明排在控件之后（视觉顺序：名称 → 控件 → 说明） */
+.zopick2anki-prefs .zp-body > .zp-desc {
+  order: 2;
+}
+
+.zopick2anki-prefs .zp-desc {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+}
+
+.zopick2anki-prefs select,
+.zopick2anki-prefs input[type="text"],
+.zopick2anki-prefs textarea {
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+  padding: 3px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  max-width: 420px;
+  min-width: 260px;
+}
+
+.zopick2anki-prefs textarea {
+  width: 100%;
+  min-height: 70px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: var(--font-ui-smaller);
+}
+
+.zopick2anki-prefs button {
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-smaller);
+  padding: 3px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.zopick2anki-prefs button:hover {
+  background: var(--interactive-hover);
+}
+
+.zopick2anki-prefs button.zp-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: transparent;
+}
+
+.zopick2anki-prefs .zp-status {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+.zopick2anki-prefs .zp-ok {
+  color: var(--color-green, #2e9e5b);
+}
+
+.zopick2anki-prefs .zp-err {
+  color: #c0392b;
+}
+
+.zopick2anki-prefs .zp-field-map {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+  margin: 6px 0 0;
+}
+
+/* 字段映射也按"名称 → 控件 → 说明"上下堆叠，与其它设置项一致 */
+.zopick2anki-prefs .zp-field-map .zp-field-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.zopick2anki-prefs .zp-field-map .zp-fm-label {
+  font-weight: 600;
+  font-size: var(--font-ui-smaller);
+}
+
+.zopick2anki-prefs .zp-field-map .zp-fm-desc {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* 横向按钮组（导入 / 恢复默认值等） */
+.zopick2anki-prefs .zp-btn-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}

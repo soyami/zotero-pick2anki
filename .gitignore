@@ -1,0 +1,24 @@
+# 依赖与构建产物
+node_modules/
+.scaffold/
+build/
+*.tsbuildinfo
+*.xpi
+
+# 本地缓存与临时环境（本机开发/沙箱用）
+.cache/
+.npm-cache/
+.zotero-test/
+test/dist/
+
+# 本地配置
+.env
+.DS_Store
+
+docs/移植说明与Zotero注意事项.md
+scripts/zotero-loadtest.ps1
+_dev/
+_private/
+_templates/
+AGENTS.md
+CLAUDE.md

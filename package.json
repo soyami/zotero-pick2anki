@@ -1,0 +1,39 @@
+{
+  "name": "zotero-pick2anki",
+  "type": "module",
+  "version": "1.0.6",
+  "description": "Zotero 划词词典插件：PDF/EPub 阅读器里选中英文单词 → 5 个在线词典源聚合释义 → 一键通过 AnkiConnect 写入 Anki 生词卡",
+  "config": {
+    "addonName": "Pick2anki",
+    "addonID": "zoteropick2anki@local",
+    "addonRef": "zoteropick2anki",
+    "addonInstance": "ZoteroPick2anki",
+    "prefsPrefix": "extensions.zotero.zoteropick2anki"
+  },
+  "homepage": "https://github.com/soyami/zotero-pick2anki",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soyami/zotero-pick2anki.git"
+  },
+  "author": "zotero-pick2anki 移植项目（原 Pick2anki 作者 soyami，MIT）",
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run typecheck && zotero-plugin build",
+    "typecheck": "tsc --noEmit",
+    "start": "zotero-plugin serve",
+    "icons": "node scripts/make-icons.mjs",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "keywords": [
+    "zotero",
+    "anki",
+    "dictionary",
+    "vocabulary"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.3",
+    "zotero-plugin-scaffold": "0.9.2"
+  }
+}
